@@ -1,5 +1,6 @@
 package org.poker.HandEval;
 
+import org.poker.CFR.History.KuhnPokerHistory;
 import org.poker.Card;
 import org.poker.CFR.History.AbstractHistory;
 import java.util.ArrayList;
@@ -21,7 +22,6 @@ public abstract class HandEval {
         for (int i = 0; i < hands.size(); i++) {
             if (i == player) continue;
 
-            // ✅ This calls the abstract compareHands() implemented in subclasses
             int comparison = compareHands(playerHand, hands.get(i));
 
             if (comparison < 0) {
@@ -55,8 +55,43 @@ public abstract class HandEval {
         return arr;
     }
 
-    // ✅ REQUIRED abstract methods for subclasses to implement
     public abstract int compareHands(ArrayList<Card> a, ArrayList<Card> b);
 
-    public abstract ArrayList<Double> utilityFromHistory(AbstractHistory history);
+    public ArrayList<Double> utilityFromHistory(AbstractHistory history) {
+        KuhnPokerHistory h = (KuhnPokerHistory) history;
+
+        ArrayList<ArrayList<Card>> hands = new ArrayList<>();
+        hands.add(h.getHand(0));
+        hands.add(h.getHand(1));
+
+        // Base contributions: antes
+        ArrayList<Double> contributions = new ArrayList<>();
+        contributions.add(1.0);
+        contributions.add(1.0);
+
+        // Track additional bets/calls
+        for (String action : h.getActions()) {
+            if (action.endsWith("Bet") || action.endsWith("Call")) {
+                int p = action.startsWith("P0:") ? 0 : 1;
+                contributions.set(p, contributions.get(p) + 1.0);
+            }
+        }
+
+        // Handle folding
+        for (String action : h.getActions()) {
+            if (action.endsWith("Fold")) {
+                ArrayList<Double> utils = new ArrayList<>();
+                utils.add(0.0);
+                utils.add(0.0);
+                int foldingPlayer = action.startsWith("P0:") ? 0 : 1;
+                int winner = 1 - foldingPlayer;
+                utils.set(winner, contributions.get(foldingPlayer));
+                utils.set(foldingPlayer, -contributions.get(foldingPlayer));
+                return utils;
+            }
+        }
+
+        // Showdown
+        return utility(contributions, hands);
+    }
 }
